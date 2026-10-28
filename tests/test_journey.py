@@ -331,6 +331,19 @@ class FileCollectionTests(unittest.TestCase):
             found = collect_files([root])
         self.assertEqual([path.name for path in found], ["guide.md", "notes.docx"])
 
+    def test_json_po_yaml_and_xliff_are_not_supported(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "guide.md").write_text("hello", encoding="utf-8")
+            for name in ("strings.json", "copy.yaml", "copy.yml", "messages.po", "guide.xliff", "guide.xlf"):
+                (root / name).write_text("{}", encoding="utf-8")
+            found = collect_files([root])
+            self.assertEqual([path.name for path in found], ["guide.md"])
+            for name in ("strings.json", "copy.yaml", "copy.yml", "messages.po", "guide.xliff", "guide.xlf"):
+                with self.assertRaises(VantageError) as caught:
+                    collect_files([root / name])
+                self.assertEqual(caught.exception.error_code, "unsupported_file_extension")
+
     def test_explicit_unsupported_file_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "photo.png"

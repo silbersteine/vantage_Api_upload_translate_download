@@ -2,9 +2,10 @@ name: Translate with Vantage
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "source-lang/**"
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
   translate:
@@ -26,7 +27,43 @@ jobs:
           VANTAGE_API_TOKEN: ${{ secrets.VANTAGE_API_TOKEN }}
           VANTAGE_PROJECT_ID: ${{ vars.VANTAGE_PROJECT_ID }}
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: translated
-          path: translated
+      - name: Open a pull request with the translations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$BASE_BRANCH" == translations/* ]]; then
+            echo "Skipping. ${BASE_BRANCH} is already a translation branch."
+            exit 0
+          fi
+
+          head_branch="translations/${BASE_BRANCH}"
+          git checkout -B "$head_branch"
+          git add -f translated
+          if git diff --cached --quiet; then
+            echo "No translation changes to commit."
+            exit 0
+          fi
+
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "Add translations for ${BASE_BRANCH}."
+
+          git fetch origin "$head_branch" || true
+          git push --force-with-lease origin "HEAD:${head_branch}"
+
+          if gh pr view "$head_branch" --json url --jq .url; then
+            echo "Updated the open pull request."
+          else
+            gh pr create \
+              --base "$BASE_BRANCH" \
+              --head "$head_branch" \
+              --title "Translations for ${BASE_BRANCH}" \
+              --body "$(cat <<EOF
+          ## Summary
+          - Adds the Vantage translations for \`${BASE_BRANCH}\`.
+          - The source files came from \`source-lang/\` on that branch.
+          EOF
+          )"
+          fi

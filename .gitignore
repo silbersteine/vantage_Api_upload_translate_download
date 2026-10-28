@@ -5,6 +5,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .env
+# Local downloads stay untracked. The translate workflow force-adds this folder on its pull request branch.
 translated/
 *.egg-info/
 dist/

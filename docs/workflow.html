@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>How the translate workflow runs</title>
+  <meta name="description" content="What the Vantage translate client does, from the files you choose to the translations it saves, on your machine and in GitHub Actions.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,600;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
+  <style>
+  :root { color-scheme: light; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body { margin: 0; }
+  [hidden] { display: none !important; }
+  :root {
+    --paper: #f3f5f9;
+    --surface: #ffffff;
+    --ink: #162033;
+    --muted: #576074;
+    --line: #d6dce6;
+    --accent: #2945c4;
+    --accent-soft: #e4e8fa;
+    --on-accent: #ffffff;
+    --code: #eceff5;
+    --font-display: "Bricolage Grotesque", "Avenir Next Condensed", "Avenir Next", system-ui, sans-serif;
+    --font-body: "Atkinson Hyperlegible Next", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --font-code: "Atkinson Hyperlegible Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0e121a;
+      --surface: #151a25;
+      --ink: #e3e7ef;
+      --muted: #99a2b4;
+      --line: #283042;
+      --accent: #93a5ff;
+      --accent-soft: #1d2546;
+      --on-accent: #0e121a;
+      --code: #111621;
+      color-scheme: dark;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.55;
+  }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  code, pre { font-family: var(--font-code); }
+  code { font-size: 0.92em; }
+  p code, li code, td code, .call code { background: var(--code); padding: 0.05em 0.3em; border-radius: 4px; overflow-wrap: anywhere; }
+
+  .page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 40px 96px;
+    display: grid;
+    gap: 48px;
+  }
+
+  .masthead { display: grid; gap: 14px; max-width: 70ch; }
+  .masthead h1 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: clamp(2.2rem, 5vw, 3.4rem);
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .lede { font-size: 1.15rem; margin: 0; }
+  .source { margin: 0; color: var(--muted); font-size: 0.92rem; }
+
+  h2 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.6rem;
+    line-height: 1.15;
+    margin: 0;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  h3 { margin: 0; text-wrap: balance; }
+
+  .glance {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 22px;
+    display: grid;
+    gap: 18px;
+  }
+  .glance > p { margin: 0; max-width: 70ch; }
+  .flow {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .flow li {
+    background: var(--accent-soft);
+    border-radius: 12px;
+    padding: 14px 14px 12px;
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  .flow strong {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    line-height: 1.2;
+  }
+  .flow span { color: var(--muted); font-size: 0.88rem; }
+
+  .journey { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 48px; align-items: start; }
+  .rail {
+    position: sticky;
+    top: calc(env(safe-area-inset-top, 0px) + 24px);
+    display: grid;
+    gap: 18px;
+  }
+  .rail-phase { display: grid; gap: 4px; }
+  .rail-phase > span { color: var(--muted); font-size: 0.85rem; font-weight: 600; padding-left: 40px; }
+  .rail ol { list-style: none; margin: 0; padding: 0; position: relative; display: grid; gap: 2px; }
+  .rail ol::before {
+    content: "";
+    position: absolute;
+    left: 13px;
+    top: 14px;
+    bottom: 14px;
+    width: 2px;
+    background: var(--line);
+  }
+  .rail a {
+    position: relative;
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    padding: 4px 6px 4px 0;
+    color: var(--ink);
+    text-decoration: none;
+    font-size: 0.92rem;
+    line-height: 1.25;
+    border-radius: 8px;
+  }
+  .rail a:hover span:last-child { text-decoration: underline; }
+  .dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 0.85rem;
+    background: var(--paper);
+    border: 2px solid var(--accent);
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .steps { display: grid; min-width: 0; }
+  .phase-title {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.25rem;
+    margin: 24px 0 0;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--ink);
+  }
+  .phase-title:first-child { margin-top: 0; }
+  .step {
+    display: grid;
+    gap: 14px;
+    padding-block: 28px;
+    border-bottom: 1px solid var(--line);
+    min-width: 0;
+    scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 16px);
+  }
+  .step-head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: center; }
+  .step-num {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 2.4rem;
+    line-height: 1;
+    color: var(--accent);
+    min-width: 1.4em;
+    font-variant-numeric: tabular-nums;
+  }
+  .step-head h3 { font-size: 1.25rem; font-weight: 700; }
+  .purpose { margin: 0; max-width: 70ch; }
+  .purpose + .purpose { margin-top: -6px; }
+
+  .call {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.92rem;
+    max-width: 70ch;
+  }
+  .keep {
+    margin: 0;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    font-size: 0.92rem;
+    max-width: 70ch;
+  }
+  .keep code { background: none; padding: 0; }
+
+  pre {
+    margin: 0;
+    background: var(--code);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 0.84rem;
+    line-height: 1.5;
+    overflow-x: auto;
+    white-space: pre;
+    max-width: 70ch;
+  }
+
+  .table-wrap { overflow-x: auto; max-width: 70ch; }
+  table.names { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+  .names th, .names td { text-align: left; padding: 7px 12px 7px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .names th { color: var(--muted); font-weight: 600; font-size: 0.82rem; }
+  .names td:last-child { font-family: var(--font-code); }
+
+  ul.plain { margin: 0; padding-left: 1.2em; max-width: 70ch; }
+  ul.plain li + li { margin-top: 0.35em; }
+
+  @media (max-width: 900px) {
+    .journey { grid-template-columns: minmax(0, 1fr); }
+    .rail { display: none; }
+    .flow { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 520px) {
+    .flow { grid-template-columns: 1fr; }
+  }
+  </style>
+</head>
+<body>
+<div class="page">
+  <header class="masthead">
+    <h1>How the translate workflow runs</h1>
+    <p class="lede">One command sends your source files to a Lokalise Vantage file project, waits for the AI translation, and saves only the files from that run.</p>
+    <p class="source">This is the <code>vantage-translate</code> client in this repository. The same command runs on your machine and in GitHub Actions.</p>
+  </header>
+
+  <section class="glance" aria-labelledby="glance-title">
+    <h2 id="glance-title">The short version</h2>
+    <p><code>getting-started.md</code> and <code>file2.md</code> go in together. Spanish comes back as <code>getting-started.es.md</code> and <code>file2.es.md</code>. Nothing else in the project is downloaded.</p>
+    <ol class="flow">
+      <li><strong>Your files</strong><span>A file or the <code>source-lang</code> folder</span></li>
+      <li><strong>One batch</strong><span>Up to 100 files, imported once</span></li>
+      <li><strong>The AI</strong><span>Download when the draft is ready</span></li>
+      <li><strong>Your folder</strong><span><code>translated/</code> on disk, or a pull request</span></li>
+    </ol>
+  </section>
+
+  <div class="journey">
+    <nav class="rail" aria-label="Workflow steps">
+      <div class="rail-phase">
+        <span>Before it starts</span>
+        <ol>
+          <li><a href="#step-credentials"><span class="dot">1</span><span>Token and project</span></a></li>
+          <li><a href="#step-files"><span class="dot">2</span><span>The files you send</span></a></li>
+          <li><a href="#step-languages"><span class="dot">3</span><span>Target languages</span></a></li>
+        </ol>
+      </div>
+      <div class="rail-phase">
+        <span>The files go in</span>
+        <ol>
+          <li><a href="#step-batch"><span class="dot">4</span><span>One batch</span></a></li>
+          <li><a href="#step-upload"><span class="dot">5</span><span>Upload and confirm</span></a></li>
+          <li><a href="#step-import"><span class="dot">6</span><span>Import and item ids</span></a></li>
+        </ol>
+      </div>
+      <div class="rail-phase">
+        <span>The AI translates</span>
+        <ol>
+          <li><a href="#step-wait"><span class="dot">7</span><span>Wait for the AI</span></a></li>
+        </ol>
+      </div>
+      <div class="rail-phase">
+        <span>The files come back</span>
+        <ol>
+          <li><a href="#step-export"><span class="dot">8</span><span>Export this run only</span></a></li>
+          <li><a href="#step-names"><span class="dot">9</span><span>Names and saving</span></a></li>
+          <li><a href="#step-github"><span class="dot">10</span><span>GitHub Actions</span></a></li>
+        </ol>
+      </div>
+    </nav>
+
+    <main class="steps">
+      <h2 class="phase-title">Before it starts</h2>
+
+      <section class="step" id="step-credentials" aria-labelledby="title-credentials">
+        <div class="step-head"><span class="step-num">1</span><h3 id="title-credentials">You give it a token and a project</h3></div>
+        <p class="purpose">The client needs a read/write Lokalise API token and the UUID of a Vantage <em>file</em> project. On your machine, put both in <code>.env</code> in this folder. The command also finds that file if you start it from a subfolder such as <code>source-lang</code>. <code>.env</code> is not committed.</p>
+        <pre>VANTAGE_API_TOKEN=your-token
+VANTAGE_PROJECT_ID=your-project-uuid</pre>
+        <p class="purpose">In GitHub, the token is a <strong>repository secret</strong> named <code>VANTAGE_API_TOKEN</code>. The project id is a <strong>repository variable</strong> named <code>VANTAGE_PROJECT_ID</code>. The workflow does not use a GitHub Environment, so environment secrets are not read.</p>
+        <p class="keep"><strong>Keep in mind:</strong> the token is sent only to <code>api.lokalise.com</code>. The file upload and the translated-file download use temporary storage links, and those requests do not include the token.</p>
+      </section>
+
+      <section class="step" id="step-files" aria-labelledby="title-files">
+        <div class="step-head"><span class="step-num">2</span><h3 id="title-files">You point it at the files</h3></div>
+        <p class="purpose"><code>--input</code> is a file or a folder. Repeat the flag to send more than one path. A folder is searched, including subfolders. A file you name directly must be a supported type. Inside a folder, other files are skipped.</p>
+        <pre>py -3 -m vantage_client --input source-lang --output translated</pre>
+        <ul class="plain">
+          <li>Supported types: DOCX, PPTX, XLSX, HTML, Markdown, and IDML.</li>
+          <li>Each file must be 50 MB or smaller.</li>
+          <li>Two files cannot share the same name, even in different folders. Vantage tells uploads apart by file name, ignoring letter case.</li>
+        </ul>
+        <p class="keep"><strong>Keep in mind:</strong> <code>--output</code> is the folder where translations are written. The default is <code>translated</code>.</p>
+      </section>
+
+      <section class="step" id="step-languages" aria-labelledby="title-languages">
+        <div class="step-head"><span class="step-num">3</span><h3 id="title-languages">It reads the project’s target languages</h3></div>
+        <p class="purpose">The first API call loads the project. The project must be a file project. The client takes every target language on that project. The base language is the language you wrote in, so it is not exported.</p>
+        <p class="call">API call: <code>GET /v1/projects/{projectId}</code></p>
+        <p class="purpose">To ask for fewer languages, pass <code>--locales</code>. <code>de-DE</code> and <code>de_de</code> match the same language. The spelling stored on the project is the one used later in the file names.</p>
+        <pre>py -3 -m vantage_client --input source-lang --locales es --output translated</pre>
+        <p class="keep"><strong>Keep in mind:</strong> with no <code>--locales</code>, a project whose only target is Spanish downloads <code>es</code> and nothing else.</p>
+      </section>
+
+      <h2 class="phase-title">The files go in</h2>
+
+      <section class="step" id="step-batch" aria-labelledby="title-batch">
+        <div class="step-head"><span class="step-num">4</span><h3 id="title-batch">Several files go in as one batch</h3></div>
+        <p class="purpose">Every file in the run is registered together, up to 100 files. That registration returns one batch id. The later import uses that same id, so the files are imported once, not once per file.</p>
+        <p class="call">API call: <code>POST /v1/projects/{projectId}/uploads</code> with every file’s name, type, size, and MD5 checksum.</p>
+        <p class="purpose">A run of 140 files becomes two batches: the first 100, then the remaining 40. Each batch is uploaded, confirmed, and imported before the next one starts. The download at the end still covers every file from the run.</p>
+        <p class="keep"><strong>Keep in mind:</strong> <code>getting-started.md</code> and <code>file2.md</code> are one batch and one import.</p>
+      </section>
+
+      <section class="step" id="step-upload" aria-labelledby="title-upload">
+        <div class="step-head"><span class="step-num">5</span><h3 id="title-upload">Each file is uploaded, then the batch is confirmed</h3></div>
+        <p class="purpose">Vantage answers the registration with a temporary upload link for each file. The client posts the file there, then tells Vantage the batch is complete. It then checks the batch until every file in this run is <code>UPLOADED</code>. A status of <code>UPLOAD_FAILED</code> stops the run.</p>
+        <p class="call">API calls: upload to the temporary link, then <code>POST /uploads/actions/complete</code> with the batch id, then <code>GET /uploads?filter-batch-id=…</code> until the files are parsed.</p>
+        <p class="keep"><strong>Keep in mind:</strong> confirming the batch does not import it yet. Parsing only means Vantage has accepted the file bytes.</p>
+      </section>
+
+      <section class="step" id="step-import" aria-labelledby="title-import">
+        <div class="step-head"><span class="step-num">6</span><h3 id="title-import">The batch is imported, and each file gets an item id</h3></div>
+        <p class="purpose">One import call brings the whole batch into the project as source content, in the project’s base language. Translation starts on its own after that. The client checks the same batch until each file is <code>IMPORTED</code>.</p>
+        <p class="call">API calls: <code>POST /v1/projects/{projectId}/imports</code> with the batch id, then <code>GET /uploads?filter-batch-id=…</code>.</p>
+        <p class="purpose">The item id is not known when the file is staged. It appears on the upload record only after the status is <code>IMPORTED</code>. The client keeps the item id of each file from this run and ignores every other upload in the project.</p>
+        <p class="keep"><strong>Keep in mind:</strong> the item id is how the download stays limited to the files you just sent.</p>
+      </section>
+
+      <h2 class="phase-title">The AI translates</h2>
+
+      <section class="step" id="step-wait" aria-labelledby="title-wait">
+        <div class="step-head"><span class="step-num">7</span><h3 id="title-wait">It waits for the AI, and not for reviewers</h3></div>
+        <p class="purpose">The client checks the import’s translation status about every 5 seconds. While a language is <code>TRANSLATING</code>, it keeps waiting. When the AI draft is ready, it moves on and downloads that draft.</p>
+        <p class="call">API call: <code>GET /v1/projects/{projectId}/translation-statuses/{importId}</code></p>
+        <ul class="plain">
+          <li><code>TRANSLATING</code> means the AI is still working. Keep waiting.</li>
+          <li><code>PENDING_REVIEW</code> means the AI is done and a person may still review it. Download now.</li>
+          <li><code>COMPLETED</code> means the language is finished. Download now.</li>
+          <li><code>FAILED</code> stops the run.</li>
+        </ul>
+        <p class="purpose">Each wait has its own limit of 30 minutes: parsing the upload, finishing the import, translating, and building the export. Pass <code>--timeout</code> to change that limit, in seconds.</p>
+        <p class="keep"><strong>Keep in mind:</strong> if the project uses human review, the command does not sit and wait for reviewers. It downloads the AI files as soon as they are ready.</p>
+      </section>
+
+      <h2 class="phase-title">The files come back</h2>
+
+      <section class="step" id="step-export" aria-labelledby="title-export">
+        <div class="step-head"><span class="step-num">8</span><h3 id="title-export">It exports only the items from this run</h3></div>
+        <p class="purpose">The export lists each item id from this run, with the target languages chosen in step 3. It does not ask for the whole project, and it does not send a language list on its own. Older uploads that happen to sit in the same project stay out of the download.</p>
+        <p class="call">API calls: <code>POST /v1/projects/{projectId}/exports</code>, then <code>GET /exports/{exportId}</code> until the status is <code>COMPLETED</code>.</p>
+        <p class="purpose">If an item has no translated content in the requested language, Vantage leaves that file out of the bundle. The command still saves the files that did come back, and it prints the names that were missing.</p>
+        <p class="keep"><strong>Keep in mind:</strong> a failed export stops the run. The client does not save a partial download from a failed export.</p>
+      </section>
+
+      <section class="step" id="step-names" aria-labelledby="title-names">
+        <div class="step-head"><span class="step-num">9</span><h3 id="title-names">Vantage names the files, and the client checks those names</h3></div>
+        <p class="purpose">The export request does not include a file name. Vantage builds one from the original name and the project’s locale: the locale is inserted before the extension.</p>
+        <div class="table-wrap">
+          <table class="names">
+            <thead>
+              <tr><th scope="col">You sent</th><th scope="col">Spanish file</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>getting-started.md</td><td>getting-started.es.md</td></tr>
+              <tr><td>file2.md</td><td>file2.es.md</td></tr>
+              <tr><td>guide.docx</td><td>guide.de-DE.docx</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="purpose">One produced file is downloaded as that file. Several produced files arrive as one ZIP, with those names at the top and no folders. The client writes them into <code>--output</code>. A name it did not expect stops the run, and that file is not saved. A path that tries to leave the output folder is rejected the same way.</p>
+        <p class="call">API call: <code>GET /exports/{exportId}/download-url</code>, then a download of that temporary link with no API token.</p>
+        <p class="keep"><strong>Keep in mind:</strong> if you asked for two files and Vantage produced only one, you still get that one file. The log names the file that was left out.</p>
+      </section>
+
+      <section class="step" id="step-github" aria-labelledby="title-github">
+        <div class="step-head"><span class="step-num">10</span><h3 id="title-github">GitHub Actions runs the same command</h3></div>
+        <p class="purpose">The workflow in <code>.github/workflows/translate.yml</code> starts in two ways: you run it by hand, or you push a change under <code>source-lang/</code>. It checks out the repository, installs this package, and runs:</p>
+        <pre>vantage-translate --input source-lang --output translated</pre>
+        <ul class="plain">
+          <li>The runner is Ubuntu, with Python 3.12.</li>
+          <li>The token comes from the repository secret. The project id comes from the repository variable.</li>
+          <li>The job is allowed 60 minutes. Inside the command, each wait is still 30 minutes.</li>
+          <li>When the command finishes, the workflow opens a branch named <code>translations/</code> plus the branch that triggered the run. A push to <code>master</code> opens <code>translations/master</code>.</li>
+          <li>It commits <code>translated/</code> on that branch and opens a pull request back to the triggering branch. A later run updates the same pull request.</li>
+        </ul>
+        <p class="keep"><strong>Keep in mind:</strong> <code>translated/</code> stays out of ordinary local commits. The workflow adds it only on the translation branch. A push that changes only that folder does not start another translation run.</p>
+      </section>
+    </main>
+  </div>
+</div>
+</body>
+</html>

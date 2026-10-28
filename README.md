@@ -13,7 +13,7 @@ py -3 -m vantage_client --input source-lang --output translated
 
 The `.` on the install line is the current folder. Leave it in.
 
-`--input` can be a file or a folder. Repeat it to send more than one path. A folder is searched for DOCX, PPTX, XLSX, HTML, Markdown, IDML, JSON, YAML, PO, and XLIFF files. Each file must be 50 MB or smaller.
+`--input` can be a file or a folder. Repeat it to send more than one path. A folder is searched for DOCX, PPTX, XLSX, HTML, Markdown, and IDML files. Each file must be 50 MB or smaller.
 
 The command reads the project’s target languages, uploads the files, waits for the AI translation, and writes the results to `translated`. If the project also uses human review, it downloads the AI files once they are ready and does not wait for reviewers. A file named `guide.docx` comes back as `guide.de-DE.docx` for German, and the same pattern for each other target language. Only the files from this run are downloaded.
 
@@ -24,3 +24,5 @@ py -3 -m vantage_client --input source-lang\getting-started.md --locales de-DE,f
 ```
 
 Without `--locales`, every target language on the project is included. The default wait for each step is 30 minutes.
+
+GitHub Actions runs the same command when `source-lang/` changes, or when you start the workflow by hand. It opens a branch named `translations/` plus the branch that triggered the run, commits `translated/` there, and opens a pull request back to the triggering branch. The Lokalise token is a repository secret, `VANTAGE_API_TOKEN`. The project id is a repository variable, `VANTAGE_PROJECT_ID`.

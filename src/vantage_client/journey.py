@@ -25,12 +25,6 @@ MIME_TYPES = {
     ".md": "text/markdown",
     ".markdown": "text/markdown",
     ".idml": "application/vnd.adobe.indesign-idml-package",
-    ".json": "application/json",
-    ".yaml": "application/yaml",
-    ".yml": "application/yaml",
-    ".po": "text/x-gettext-translation",
-    ".xliff": "application/xliff+xml",
-    ".xlf": "application/xliff+xml",
 }
 
 UPLOADED_STATUSES = {"UPLOADED", "IMPORTING", "IMPORTED"}
