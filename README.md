@@ -25,4 +25,4 @@ py -3 -m vantage_client --input source-lang\getting-started.md --locales de-DE,f
 
 Without `--locales`, every target language on the project is included. The default wait for each step is 30 minutes.
 
-GitHub Actions runs the same command when `source-lang/` changes, or when you start the workflow by hand. It opens a branch named `translations/` plus the branch that triggered the run, commits `translated/` there, and opens a pull request back to the triggering branch. The Lokalise token is a repository secret, `VANTAGE_API_TOKEN`. The project id is a repository variable, `VANTAGE_PROJECT_ID`.
+GitHub Actions runs the same command when `source-lang/` changes, or when you start the workflow by hand. It opens a branch named `translations/` plus the triggering branch, the GitHub run id, and the attempt number, commits `translated/` there, and opens a pull request back to the triggering branch. Each run gets its own branch and pull request. The Lokalise token is a repository secret, `VANTAGE_API_TOKEN`. The project id is a repository variable, `VANTAGE_PROJECT_ID`.

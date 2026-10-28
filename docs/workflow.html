@@ -415,8 +415,8 @@ VANTAGE_PROJECT_ID=your-project-uuid</pre>
           <li>The runner is Ubuntu, with Python 3.12.</li>
           <li>The token comes from the repository secret. The project id comes from the repository variable.</li>
           <li>The job is allowed 60 minutes. Inside the command, each wait is still 30 minutes.</li>
-          <li>When the command finishes, the workflow opens a branch named <code>translations/</code> plus the branch that triggered the run. A push to <code>master</code> opens <code>translations/master</code>.</li>
-          <li>It commits <code>translated/</code> on that branch and opens a pull request back to the triggering branch. A later run updates the same pull request.</li>
+          <li>When the command finishes, the workflow opens a branch named <code>translations/</code>, the triggering branch, the GitHub run id, and the attempt number. A run on <code>master</code> opens a branch such as <code>translations/master-18492736421-1</code>.</li>
+          <li>It commits <code>translated/</code> on that branch and opens a pull request back to the triggering branch. Each run gets its own pull request, so an earlier unmerged translation stays where it is.</li>
         </ul>
         <p class="keep"><strong>Keep in mind:</strong> <code>translated/</code> stays out of ordinary local commits. The workflow adds it only on the translation branch. A push that changes only that folder does not start another translation run.</p>
       </section>

@@ -31,6 +31,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BASE_BRANCH: ${{ github.ref_name }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
           set -euo pipefail
           if [[ "$BASE_BRANCH" == translations/* ]]; then
@@ -38,7 +40,7 @@ jobs:
             exit 0
           fi
 
-          head_branch="translations/${BASE_BRANCH}"
+          head_branch="translations/${BASE_BRANCH}-${RUN_ID}-${RUN_ATTEMPT}"
           git checkout -B "$head_branch"
           git add -f translated
           if git diff --cached --quiet; then
@@ -50,8 +52,7 @@ jobs:
               -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
               commit -m "Add translations for ${BASE_BRANCH}."
 
-          git fetch origin "$head_branch" || true
-          git push --force-with-lease origin "HEAD:${head_branch}"
+          git push -u origin "HEAD:${head_branch}"
 
           if gh pr view "$head_branch" --json url --jq .url; then
             echo "Updated the open pull request."
