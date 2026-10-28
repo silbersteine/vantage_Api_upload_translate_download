@@ -409,8 +409,7 @@ VANTAGE_PROJECT_ID=your-project-uuid</pre>
 
       <section class="step" id="step-github" aria-labelledby="title-github">
         <div class="step-head"><span class="step-num">10</span><h3 id="title-github">GitHub Actions runs the same command</h3></div>
-        <p class="purpose">The workflow in <code>.github/workflows/translate.yml</code> starts in two ways: you run it by hand, or you push a change under <code>source-lang/</code>. It checks out the repository, installs this package, and runs:</p>
-        <pre>vantage-translate --input source-lang --output translated</pre>
+        <p class="purpose">The workflow in <code>.github/workflows/translate.yml</code> starts when you run it by hand. It does not send the whole <code>source-lang</code> folder. On <code>master</code>, it sends the files that changed in the latest commit. On any other branch, it sends the files that differ from <code>master</code>. Each of those paths is passed on its own, and a run with no changed files stops before calling Vantage.</p>
         <ul class="plain">
           <li>The runner is Ubuntu, with Python 3.12.</li>
           <li>The token comes from the repository secret. The project id comes from the repository variable.</li>
