@@ -1,0 +1,32 @@
+name: Translate with Vantage
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "source-lang/**"
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the client
+        run: pip install -e .
+
+      - name: Upload and download translations
+        run: vantage-translate --input source-lang --output translated
+        env:
+          VANTAGE_API_TOKEN: ${{ secrets.VANTAGE_API_TOKEN }}
+          VANTAGE_PROJECT_ID: ${{ vars.VANTAGE_PROJECT_ID }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: translated
+          path: translated

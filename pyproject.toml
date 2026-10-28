@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vantage-file-client"
+version = "0.1.0"
+description = "Upload files to Lokalise Vantage and download the translations."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+vantage-translate = "vantage_client.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
